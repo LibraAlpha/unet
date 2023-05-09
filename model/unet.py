@@ -1,14 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model.components import InConv,DoubleConv, Down, Up, OutConv
-from torch.utils import checkpoint
+from model.components import DoubleConv, InConv
 
 
 class Unet(nn.Module):
-    """
-        Main Structure of Unet
-    """
 
     def __init__(self, in_ch, out_ch, gpu_ids=None):  # inch, 图片的通道数，1表示灰度图像，3表示彩色图像
         super(Unet, self).__init__()
@@ -36,24 +32,21 @@ class Unet(nn.Module):
         self.down2 = Down(128, 256)
 
         self.down3 = Down(256, 512)
-        self.drop3 = nn.Dropout2d()
+        self.drop3 = nn.Dropout2d(0.5)
 
         self.down4 = Down(512, 512)
         self.drop4 = nn.Dropout2d(0.5)
 
-        self.up1 = Up(1024, 512)
-        self.up2 = Up(512, 256)
-        self.up3 = Up(256, 128)
-        self.up4 = Up(128, 64)
+        self.up1 = Up(1024, 512, False)
+        self.up2 = Up(512, 256, False)
+        self.up3 = Up(256, 128, False)
+        self.up4 = Up(128, 64, False)
 
-        self.out = OutConv(64, 1)
+        self.out = OutConv(64, out_ch)
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
 
     def forward(self):
-        """
-        default forward processing of the net.
-        """
         x1 = self.inc(self.x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
@@ -73,6 +66,20 @@ class Unet(nn.Module):
     def set_input(self, x, y):
         self.x = x.to(self.device)
         self.y = y.to(self.device)
+
+    def use_checkpoint(self):
+        self.inc = torch.utils.checkpoint(self.inc)
+        self.down1 = torch.utils.checkpoint(self.down1)
+        self.down2 = torch.utils.checkpoint(self.down2)
+        self.down3 = torch.utils.checkpoint(self.down3)
+        self.down4 = torch.utils.checkpoint(self.down4)
+
+        self.up1 = torch.utils.checkpoint(self.up1)
+        self.up2 = torch.utils.checkpoint(self.up2)
+        self.up3 = torch.utils.checkpoint(self.up3)
+        self.up4 = torch.utils.checkpoint(self.up4)
+
+        self.out = torch.utils.checkpoint(self.out)
 
     def optimize_params(self):
         self.forward()

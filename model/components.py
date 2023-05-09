@@ -28,11 +28,12 @@ class DoubleConv(nn.Module):
 
 # 输入
 class InConv(nn.Module):
-    conv: DoubleConv
 
     def __init__(self, in_ch, out_ch):
         super(InConv, self).__init__()
-        self.conv = DoubleConv(in_ch, out_ch)
+        self.conv = nn.Sequential(
+            DoubleConv(in_ch, out_ch)
+        )
 
     def forward(self, x):
         x = self.conv(x)
@@ -73,7 +74,9 @@ class Up(nn.Module):
                 nn.ReLU(inplace=True)
             )
 
-        self.conv = DoubleConv(in_ch, out_ch)
+        self.conv = nn.Sequential(
+            DoubleConv(in_ch, out_ch)
+        )
         self.up.apply(self.init_weights)
 
     def forward(self, x1, x2):  # x2是左侧的输出，x1是上一大层来的输出
