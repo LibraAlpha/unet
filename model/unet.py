@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model.components import DoubleConv, InConv
+from model.components import DoubleConv, InConv, Down, Up, OutConv
 
 
 class Unet(nn.Module):
 
-    def __init__(self, in_ch, out_ch, gpu_ids=None):  # inch, 图片的通道数，1表示灰度图像，3表示彩色图像
+    def __init__(self, in_ch, out_ch, gpu_ids=None, bilinear=False):  # inch, 图片的通道数，1表示灰度图像，3表示彩色图像
         super(Unet, self).__init__()
         if gpu_ids is None:
             gpu_ids = []
@@ -25,22 +25,25 @@ class Unet(nn.Module):
         self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if torch.cuda.is_available() else torch.device(
             'cpu')
 
+        self.bilinear = bilinear
+        factor = 2 if bilinear else 1
+
         self.bce_loss = nn.BCELoss()
 
-        self.inc = InConv(in_ch, 64)  #
+        self.inc = (DoubleConv(in_ch, 64))
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
 
         self.down3 = Down(256, 512)
         self.drop3 = nn.Dropout2d(0.5)
 
-        self.down4 = Down(512, 512)
+        self.down4 = Down(512, 1024)
         self.drop4 = nn.Dropout2d(0.5)
 
-        self.up1 = Up(1024, 512, False)
-        self.up2 = Up(512, 256, False)
-        self.up3 = Up(256, 128, False)
-        self.up4 = Up(128, 64, False)
+        self.up1 = Up(1024, 512 // factor, bilinear)
+        self.up2 = Up(512, 256 // factor, bilinear)
+        self.up3 = Up(256, 128 // factor, bilinear)
+        self.up4 = Up(128, 64 // factor, bilinear)
 
         self.out = OutConv(64, out_ch)
 
@@ -66,20 +69,7 @@ class Unet(nn.Module):
     def set_input(self, x, y):
         self.x = x.to(self.device)
         self.y = y.to(self.device)
-
-    def use_checkpoint(self):
-        self.inc = torch.utils.checkpoint(self.inc)
-        self.down1 = torch.utils.checkpoint(self.down1)
-        self.down2 = torch.utils.checkpoint(self.down2)
-        self.down3 = torch.utils.checkpoint(self.down3)
-        self.down4 = torch.utils.checkpoint(self.down4)
-
-        self.up1 = torch.utils.checkpoint(self.up1)
-        self.up2 = torch.utils.checkpoint(self.up2)
-        self.up3 = torch.utils.checkpoint(self.up3)
-        self.up4 = torch.utils.checkpoint(self.up4)
-
-        self.out = torch.utils.checkpoint(self.out)
+        self.to(self.device)
 
     def optimize_params(self):
         self.forward()
@@ -133,3 +123,18 @@ class Unet(nn.Module):
             self._bce_iou_loss()
             _ = self.accu_iou()
             self.stack_count += 1
+
+
+if __name__ == '__main__':
+    in_ch = 3
+    out_ch = 1
+    unet = Unet(in_ch, out_ch, gpu_ids=[0])
+
+    x = torch.randn(1, in_ch, 256, 256)
+    y = torch.randn(1, out_ch, 256, 256)
+
+    unet.set_input(x, y)
+
+    unet.optimize_params()
+
+    losses = unet.get_current_losses()
