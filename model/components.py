@@ -44,7 +44,7 @@ class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
     def __init__(self, in_ch, out_ch):
-        super().__init__()
+        super(Down, self).__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),  # 先进行maxpool，再进行两层链接
             DoubleConv(in_ch, out_ch)
@@ -63,7 +63,7 @@ class Up(nn.Module):
     """
 
     def __init__(self, in_ch, out_ch, bilinear=True):
-        super().__init__()
+        super(Up, self).__init__()
         if bilinear:
             self.up = lambda x: nn.functional.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_ch, out_ch, in_ch // 2)
@@ -88,7 +88,7 @@ class Up(nn.Module):
 
 class OutConv(nn.Module):
     def __init__(self, in_ch, out_ch):
-        super().__init__()
+        super(OutConv, self).__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=1)
 
     def forward(self, x):
