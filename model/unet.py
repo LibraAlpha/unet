@@ -138,3 +138,4 @@ if __name__ == '__main__':
     unet.optimize_params()
 
     losses = unet.get_current_losses()
+    print(losses)
